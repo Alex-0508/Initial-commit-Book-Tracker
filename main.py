@@ -1,69 +1,62 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import json
+import os
 
 class BookTracker:
+    DEFAULT_FILE = "books.json"
+
     def __init__(self, master):
         self.master = master
         self.master.title("Book Tracker")
         self.books = []
 
-        # Создаем интерфейс
         self.create_widgets()
-        self.load_data()  # Попытка подгрузить сохраненные данные
+
+        self.load_data(auto=True)
 
     def create_widgets(self):
-        # Поля для ввода
         frame_input = tk.Frame(self.master)
-        frame_input.pack(padx=10, pady=10)
+        frame_input.pack(padx=10, pady=10, fill=tk.X)
 
-        tk.Label(frame_input, text="Название книги").grid(row=0, column=0, sticky="w")
-        tk.Label(frame_input, text="Автор").grid(row=1, column=0, sticky="w")
-        tk.Label(frame_input, text="Жанр").grid(row=2, column=0, sticky="w")
-        tk.Label(frame_input, text="Количество страниц").grid(row=3, column=0, sticky="w")
+        labels = ["Название книги", "Автор", "Жанр", "Количество страниц"]
+        self.entries = {}
+        for i, label in enumerate(labels):
+            tk.Label(frame_input, text=label).grid(row=i, column=0, sticky="w")
+            entry = tk.Entry(frame_input)
+            entry.grid(row=i, column=1, sticky="ew", padx=5, pady=2)
+            self.entries[label] = entry
 
-        self.title_entry = tk.Entry(frame_input)
-        self.author_entry = tk.Entry(frame_input)
-        self.genre_entry = tk.Entry(frame_input)
-        self.pages_entry = tk.Entry(frame_input)
-
-        self.title_entry.grid(row=0, column=1)
-        self.author_entry.grid(row=1, column=1)
-        self.genre_entry.grid(row=2, column=1)
-        self.pages_entry.grid(row=3, column=1)
-
-        # Кнопка для добавления книги
         btn_add = tk.Button(frame_input, text="Добавить книгу", command=self.add_book)
-        btn_add.grid(row=4, column=0, columnspan=2, pady=5)
+        btn_add.grid(row=len(labels), column=0, columnspan=2, pady=5)
 
-        # Таблица для отображения книг
+        frame_input.columnconfigure(1, weight=1)
+
         columns = ("Название", "Автор", "Жанр", "Страницы")
         self.tree = ttk.Treeview(self.master, columns=columns, show="headings")
         for col in columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
-
+            self.tree.column(col, width=100, anchor="center")
         self.tree.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        # Фильтры
         filter_frame = tk.Frame(self.master)
-        filter_frame.pack(padx=10, pady=5)
+        filter_frame.pack(padx=10, pady=5, fill=tk.X)
 
-        # Фильтр по жанру
-        tk.Label(filter_frame, text="Фильтр по жанру:").grid(row=0, column=0)
+        tk.Label(filter_frame, text="Фильтр по жанру:").pack(side=tk.LEFT)
         self.genre_filter_var = tk.StringVar()
-        self.genre_filter_entry = tk.Entry(filter_frame, textvariable=self.genre_filter_var)
-        self.genre_filter_entry.grid(row=0, column=1)
-        self.genre_filter_entry.bind("<KeyRelease>", lambda e: self.apply_filters())
+        genre_entry = tk.Entry(filter_frame, textvariable=self.genre_filter_var)
+        genre_entry.pack(side=tk.LEFT, padx=5)
+        genre_entry.bind("<KeyRelease>", lambda e: self.apply_filters())
 
-        # Фильтр по страницам (больше)
-        tk.Label(filter_frame, text="Страниц >").grid(row=0, column=2)
+        tk.Label(filter_frame, text="Страниц >").pack(side=tk.LEFT)
         self.pages_filter_var = tk.StringVar()
-        self.pages_filter_entry = tk.Entry(filter_frame, textvariable=self.pages_filter_var)
-        self.pages_filter_entry.grid(row=0, column=3)
-        self.pages_filter_entry.bind("<KeyRelease>", lambda e: self.apply_filters())
+        pages_entry = tk.Entry(filter_frame, textvariable=self.pages_filter_var, width=5)
+        pages_entry.pack(side=tk.LEFT, padx=5)
+        pages_entry.bind("<KeyRelease>", lambda e: self.apply_filters())
 
-        # Меню для сохранения/загрузки
+        btn_clear_filters = tk.Button(filter_frame, text="Очистить фильтры", command=self.clear_filters)
+        btn_clear_filters.pack(side=tk.LEFT, padx=5)
+
         menubar = tk.Menu(self.master)
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="Сохранить в JSON", command=self.save_data)
@@ -71,21 +64,16 @@ class BookTracker:
         menubar.add_cascade(label="Файл", menu=filemenu)
         self.master.config(menu=menubar)
 
-        # Кнопки для очистки фильтров
-        clear_btn = tk.Button(filter_frame, text="Очистить фильтры", command=self.clear_filters)
-        clear_btn.grid(row=0, column=4, padx=5)
-
     def add_book(self):
-        title = self.title_entry.get().strip()
-        author = self.author_entry.get().strip()
-        genre = self.genre_entry.get().strip()
-        pages = self.pages_entry.get().strip()
+        title = self.entries["Название книги"].get().strip()
+        author = self.entries["Автор"].get().strip()
+        genre = self.entries["Жанр"].get().strip()
+        pages_str = self.entries["Количество страниц"].get().strip()
 
-        # Проверка
-        if not title or not author or not genre or not pages:
+        if not title or not author or not genre or not pages_str:
             messagebox.showerror("Ошибка", "Все поля должны быть заполнены")
             return
-        if not pages.isdigit():
+        if not pages_str.isdigit():
             messagebox.showerror("Ошибка", "Количество страниц должно быть числом")
             return
 
@@ -93,21 +81,19 @@ class BookTracker:
             "title": title,
             "author": author,
             "genre": genre,
-            "pages": int(pages)
+            "pages": int(pages_str)
         }
         self.books.append(book)
         self.refresh_tree()
         self.clear_entries()
 
     def clear_entries(self):
-        self.title_entry.delete(0, tk.END)
-        self.author_entry.delete(0, tk.END)
-        self.genre_entry.delete(0, tk.END)
-        self.pages_entry.delete(0, tk.END)
+        for entry in self.entries.values():
+            entry.delete(0, tk.END)
 
     def refresh_tree(self, filtered_books=None):
-        for i in self.tree.get_children():
-            self.tree.delete(i)
+        for item in self.tree.get_children():
+            self.tree.delete(item)
         data = filtered_books if filtered_books is not None else self.books
         for book in data:
             self.tree.insert("", tk.END, values=(
@@ -138,27 +124,33 @@ class BookTracker:
         self.refresh_tree()
 
     def save_data(self):
-        filename = filedialog.asksaveasfilename(defaultextension=".json",
-                                                filetypes=[("JSON files", "*.json")])
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON файлы", "*.json")]
+        )
         if filename:
             try:
                 with open(filename, "w", encoding="utf-8") as f:
                     json.dump(self.books, f, ensure_ascii=False, indent=4)
-                messagebox.showinfo("Успех", "Данные сохранены")
+                messagebox.showinfo("Успех", "Данные успешно сохранены")
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось сохранить файл: {e}")
 
-    def load_data(self):
-        filename = filedialog.askopenfilename(defaultextension=".json",
-                                              filetypes=[("JSON файлы", "*.json")])
+    def load_data(self, auto=False):
+        filename = self.DEFAULT_FILE if auto else filedialog.askopenfilename(
+            defaultextension=".json",
+            filetypes=[("JSON файлы", "*.json")]
+        )
         if filename:
             try:
                 with open(filename, "r", encoding="utf-8") as f:
                     self.books = json.load(f)
                 self.refresh_tree()
-                messagebox.showinfo("Успех", "Данные загружены")
+                if not auto:
+                    messagebox.showinfo("Успех", "Данные загружены")
             except Exception as e:
-                messagebox.showerror("Ошибка", f"Не удалось загрузить файл: {e}")
+                if not auto:
+                    messagebox.showerror("Ошибка", f"Не удалось загрузить файл: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
